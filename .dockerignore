@@ -1,0 +1,11 @@
+.git
+.next
+node_modules
+backend/node_modules
+backend/dist
+frontend/node_modules
+frontend/.next
+coverage
+test-results
+playwright-report
+npm-debug.log

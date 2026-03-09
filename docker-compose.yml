@@ -1,0 +1,104 @@
+services:
+  db:
+    image: postgres:17-alpine
+    container_name: techhaven-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: techhaven_user
+      POSTGRES_PASSWORD: rahul
+      POSTGRES_DB: techhaven
+    ports:
+      - "${DB_HOST_PORT:-5433}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U techhaven_user -d techhaven"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  backend-init:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+      target: runtime
+    container_name: techhaven-backend-init
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PORT: 3001
+      FRONTEND_URL: http://localhost:${FRONTEND_HOST_PORT:-3004}
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_NAME: techhaven
+      DB_USERNAME: techhaven_user
+      DB_PASSWORD: rahul
+      DATABASE_URL: postgres://techhaven_user:rahul@db:5432/techhaven
+      DISABLE_BACKEND_PORT_FILE: "true"
+      STRIPE_PUBLISHABLE_KEY: ${STRIPE_PUBLISHABLE_KEY:-}
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+      RAZORPAY_KEY_ID: ${RAZORPAY_KEY_ID:-}
+      RAZORPAY_KEY_SECRET: ${RAZORPAY_KEY_SECRET:-}
+      RAZORPAY_WEBHOOK_SECRET: ${RAZORPAY_WEBHOOK_SECRET:-}
+    command: ["sh", "-lc", "node dist/scripts/bootstrap-db.js && node dist/seeds/seed.js"]
+    restart: "no"
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+      target: runtime
+    container_name: techhaven-backend
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      backend-init:
+        condition: service_completed_successfully
+    environment:
+      PORT: 3001
+      FRONTEND_URL: http://localhost:${FRONTEND_HOST_PORT:-3004}
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_NAME: techhaven
+      DB_USERNAME: techhaven_user
+      DB_PASSWORD: rahul
+      DATABASE_URL: postgres://techhaven_user:rahul@db:5432/techhaven
+      DISABLE_BACKEND_PORT_FILE: "true"
+      STRIPE_PUBLISHABLE_KEY: ${STRIPE_PUBLISHABLE_KEY:-}
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+      RAZORPAY_KEY_ID: ${RAZORPAY_KEY_ID:-}
+      RAZORPAY_KEY_SECRET: ${RAZORPAY_KEY_SECRET:-}
+      RAZORPAY_WEBHOOK_SECRET: ${RAZORPAY_WEBHOOK_SECRET:-}
+    ports:
+      - "${BACKEND_HOST_PORT:-3002}:3001"
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      target: runner
+      args:
+        NEXT_PUBLIC_BACKEND_URL: http://localhost:${BACKEND_HOST_PORT:-3002}/api
+        NEXT_INTERNAL_BACKEND_URL: http://backend:3001
+    container_name: techhaven-frontend
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_started
+    environment:
+      PORT: 3000
+      NEXT_PUBLIC_BACKEND_URL: http://localhost:${BACKEND_HOST_PORT:-3002}/api
+      NEXT_INTERNAL_BACKEND_URL: http://backend:3001
+      NEXT_PUBLIC_APP_URL: http://localhost:${FRONTEND_HOST_PORT:-3004}
+      NEXT_PUBLIC_APP_NAME: TechHaven Store
+      NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: ${STRIPE_PUBLISHABLE_KEY:-}
+      NEXT_PUBLIC_RAZORPAY_KEY_ID: ${RAZORPAY_KEY_ID:-}
+    ports:
+      - "${FRONTEND_HOST_PORT:-3004}:3000"
+
+volumes:
+  postgres_data:

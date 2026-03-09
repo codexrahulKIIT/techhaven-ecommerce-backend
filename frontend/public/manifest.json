@@ -1,0 +1,16 @@
+{
+  "name": "TechHaven Store",
+  "short_name": "TechHaven",
+  "description": "Your one-stop shop for electronics and tech components",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#007bff",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}
