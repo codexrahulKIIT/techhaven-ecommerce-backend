@@ -2,11 +2,26 @@
 const fs = require('fs');
 const path = require('path');
 
-let backendUrl = process.env.NEXT_INTERNAL_BACKEND_URL || 'http://localhost:3001';
+const isProduction = process.env.NODE_ENV === 'production';
+const publicApiUrl =
+  process.env.NEXT_PUBLIC_API_URL ||
+  process.env.NEXT_PUBLIC_API_BASE_URL ||
+  process.env.NEXT_PUBLIC_BACKEND_URL ||
+  '';
+
+const internalBackendUrl = process.env.NEXT_INTERNAL_BACKEND_URL || '';
+
+function normalizeBackendBase(url) {
+  if (!url) return '';
+  const trimmed = url.replace(/\/+$/, '');
+  return trimmed.replace(/\/api$/, '');
+}
+
+let backendUrl = normalizeBackendBase(internalBackendUrl || publicApiUrl) || 'http://localhost:3001';
 
 try {
   const backendPortPath = path.join(__dirname, 'public', 'backend-port.json');
-  if (!process.env.NEXT_INTERNAL_BACKEND_URL && fs.existsSync(backendPortPath)) {
+  if (!isProduction && !process.env.NEXT_INTERNAL_BACKEND_URL && fs.existsSync(backendPortPath)) {
     const data = fs.readFileSync(backendPortPath, 'utf8');
     const { port } = JSON.parse(data);
     backendUrl = `http://localhost:${port}`;
@@ -15,8 +30,16 @@ try {
   console.error('Error reading backend port:', error);
 }
 
+const skipChecks = process.env.NEXT_SKIP_CHECKS === 'true';
+
 const nextConfig = {
   reactStrictMode: true,
+  eslint: {
+    ignoreDuringBuilds: skipChecks,
+  },
+  typescript: {
+    ignoreBuildErrors: skipChecks,
+  },
   images: {
     remotePatterns: [
       {

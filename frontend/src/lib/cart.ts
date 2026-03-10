@@ -1,7 +1,11 @@
 import { CartItem } from '@/context/CartContext'
 import { getBackendUrlSync } from '../utils/getBackendUrl'
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || getBackendUrlSync()
+const API_BASE_URL =
+  process.env.NEXT_PUBLIC_API_URL ||
+  process.env.NEXT_PUBLIC_API_BASE_URL ||
+  process.env.NEXT_PUBLIC_BACKEND_URL ||
+  getBackendUrlSync()
 
 // Types for API responses
 interface ApiResponse<T> {

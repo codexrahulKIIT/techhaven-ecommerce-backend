@@ -1,10 +1,39 @@
 export let cachedUrl: string | null = null;
 
-const DEFAULT_BACKEND_URL = 'http://localhost:3001/api';
+const isProduction = process.env.NODE_ENV === 'production';
+const DEFAULT_BACKEND_URL = isProduction ? '/api' : 'http://localhost:3001/api';
 const PORT_STORAGE_KEY = 'backendPort';
 
+function normalizeApiUrl(url: string): string {
+  const trimmed = url.replace(/\/+$/, '');
+  return trimmed.endsWith('/api') ? trimmed : `${trimmed}/api`;
+}
+
+function getPublicApiUrl(): string | null {
+  return (
+    process.env.NEXT_PUBLIC_API_URL ||
+    process.env.NEXT_PUBLIC_API_BASE_URL ||
+    process.env.NEXT_PUBLIC_BACKEND_URL ||
+    null
+  );
+}
+
+function getInternalBackendBaseUrl(): string | null {
+  return process.env.NEXT_INTERNAL_BACKEND_URL || null;
+}
+
 function getProductionBackendUrl() {
-  return process.env.NEXT_PUBLIC_BACKEND_URL || null;
+  const publicApiUrl = getPublicApiUrl();
+  if (publicApiUrl) {
+    return normalizeApiUrl(publicApiUrl);
+  }
+
+  const internalBaseUrl = getInternalBackendBaseUrl();
+  if (internalBaseUrl) {
+    return normalizeApiUrl(internalBaseUrl);
+  }
+
+  return null;
 }
 
 function buildLocalBackendUrl(port: string | number) {
@@ -39,7 +68,7 @@ export async function getBackendUrl(forceRefresh = false): Promise<string> {
     return cachedUrl;
   }
 
-  if (!forceRefresh) {
+  if (!forceRefresh && !isProduction) {
     const storedBackendUrl = getStoredBackendUrl();
     if (storedBackendUrl) {
       cachedUrl = storedBackendUrl;
@@ -47,17 +76,19 @@ export async function getBackendUrl(forceRefresh = false): Promise<string> {
     }
   }
 
-  try {
-    const response = await fetch('/backend-port.json', { cache: 'no-store' });
-    if (response.ok) {
-      const data = await response.json();
-      const resolvedUrl = buildLocalBackendUrl(data.port);
-      cachedUrl = resolvedUrl;
-      storeBackendPort(data.port);
-      return resolvedUrl;
+  if (!isProduction) {
+    try {
+      const response = await fetch('/backend-port.json', { cache: 'no-store' });
+      if (response.ok) {
+        const data = await response.json();
+        const resolvedUrl = buildLocalBackendUrl(data.port);
+        cachedUrl = resolvedUrl;
+        storeBackendPort(data.port);
+        return resolvedUrl;
+      }
+    } catch (error) {
+      console.error('Cannot read backend port, falling back to default backend URL.', error);
     }
-  } catch (error) {
-    console.error('Cannot read backend port, falling back to default backend URL.', error);
   }
 
   cachedUrl = getStoredBackendUrl() || DEFAULT_BACKEND_URL;
@@ -80,8 +111,13 @@ export function getBackendUrlSync(): string {
   }
 
   if (typeof window === 'undefined') {
-    const port = process.env.NEXT_PUBLIC_BACKEND_PORT || '3001';
-    cachedUrl = buildLocalBackendUrl(port);
+    if (!isProduction) {
+      const port = process.env.NEXT_PUBLIC_BACKEND_PORT || '3001';
+      cachedUrl = buildLocalBackendUrl(port);
+      return cachedUrl;
+    }
+
+    cachedUrl = DEFAULT_BACKEND_URL;
     return cachedUrl;
   }
 

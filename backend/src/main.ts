@@ -15,8 +15,36 @@ async function bootstrap() {
 
   app.setGlobalPrefix('api', { exclude: [{ method: RequestMethod.ALL, path: '' }] });
 
+  const rawOrigins = process.env.FRONTEND_URLS || process.env.FRONTEND_URL || '';
+  const allowList = rawOrigins
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+
+  if (process.env.NODE_ENV !== 'production') {
+    allowList.push('http://localhost:3000');
+  }
+
+  const allowPatterns = allowList.map((origin) => {
+    if (origin.includes('*')) {
+      const escaped = origin.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*');
+      return new RegExp(`^${escaped}$`);
+    }
+    return origin;
+  });
+
+  const isOriginAllowed = (origin: string) =>
+    allowPatterns.some((entry) => (typeof entry === 'string' ? entry === origin : entry.test(origin)));
+
   app.enableCors({
-    origin: process.env.FRONTEND_URL || '',
+    origin: (origin, callback) => {
+      if (!origin || isOriginAllowed(origin)) {
+        callback(null, true);
+        return;
+      }
+
+      callback(new Error(`CORS blocked for origin: ${origin}`), false);
+    },
     credentials: true,
   });
 
