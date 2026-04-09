@@ -36,7 +36,19 @@ export function getConnectionConfig() {
 }
 
 export async function bootstrapDatabase(shouldReset = false) {
-  const sqlPath = path.resolve(process.cwd(), '..', 'database', 'schema.sql');
+  const candidatePaths = [
+    path.resolve(process.cwd(), '..', 'database', 'schema.sql'),
+    path.resolve(process.cwd(), 'database', 'schema.sql'),
+    path.resolve(__dirname, '..', '..', '..', 'database', 'schema.sql'),
+  ];
+  const sqlPath = candidatePaths.find((candidate) => fs.existsSync(candidate));
+
+  if (!sqlPath) {
+    throw new Error(
+      `Unable to locate schema.sql. Checked: ${candidatePaths.join(', ')}`,
+    );
+  }
+
   const sql = fs.readFileSync(sqlPath, 'utf8');
   const client = new Client(getConnectionConfig());
 
